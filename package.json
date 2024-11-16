@@ -3,23 +3,42 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "rsbuild dev --open",
-    "build": "rsbuild build",
-    "preview": "rsbuild preview"
+    "preinstall": "npx only-allow pnpm",
+    "dev": "rsbuild dev --env-dir ./env",
+    "build": "rsbuild build --env-dir ./env",
+    "preview": "rsbuild preview",
+    "format": "pnpm biome format --write ."
   },
   "dependencies": {
+    "@ant-design/cssinjs": "^1.22.0",
+    "@ant-design/icons": "^5.5.1",
+    "@ant-design/pro-components": "^2.8.2",
+    "ahooks": "^3.8.1",
     "antd": "^5.22.1",
+    "clsx": "^2.1.1",
     "dayjs": "^1.11.13",
+    "keepalive-for-react": "^3.0.2",
+    "lucide-react": "^0.460.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.5.4",
+    "tailwind-variants": "^0.3.0",
+    "tailwindcss": "^3.4.15",
+    "valtio": "^2.1.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@rsbuild/core": "^1.0.19",
     "@rsbuild/plugin-react": "^1.0.6",
+    "@tailwindcss/typography": "^0.5.15",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
     "cz-conventional-changelog": "^3.3.0",
-    "typescript": "^5.6.3"
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.6.3",
+    "ultracite": "4.1.6"
   },
   "config": {
     "commitizen": {
