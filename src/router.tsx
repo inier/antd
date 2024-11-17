@@ -1,9 +1,14 @@
 import MainLayout from "@/layouts/main";
-import { HomeFilled, SafetyCertificateFilled, SettingFilled } from "@ant-design/icons";
-import type { MenuProps } from 'antd';
+import {
+	HomeFilled,
+	SafetyCertificateFilled,
+	SettingFilled,
+} from "@ant-design/icons";
+import type { MenuProps } from "antd";
 import { RouteObject, createBrowserRouter } from "react-router-dom";
 
-type MenuItem = Required<MenuProps>['items'][number] & RouteObject;
+export type MenuItem = { key: string } & Required<MenuProps>["items"][number] &
+	RouteObject;
 
 export const menus: MenuItem[] = [
 	{
@@ -20,7 +25,7 @@ export const menus: MenuItem[] = [
 		key: "/auth",
 		path: "/auth",
 		label: "权限管理",
-		type: 'group',
+		type: "group",
 		children: [
 			{
 				key: "/auth/user",
@@ -29,9 +34,9 @@ export const menus: MenuItem[] = [
 				icon: <SafetyCertificateFilled />,
 				lazy: async () => ({
 					Component: (await import("@/pages/auth/user")).default,
-				})
-			}
-		]
+				}),
+			},
+		],
 	},
 	{
 		key: "/setting",
@@ -41,7 +46,7 @@ export const menus: MenuItem[] = [
 		lazy: async () => ({
 			Component: (await import("@/pages/setting")).default,
 		}),
-	}
+	},
 ];
 
 const router = createBrowserRouter([

@@ -1,182 +1,324 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import constants from "@/constants";
+import { cn } from "@/lib/utils";
+import { MenuItem } from "@/router";
+
+import { useReactive } from "ahooks";
+import { Tabs } from "antd";
+import { KeepAliveRef } from "keepalive-for-react";
 import {
-  Avatar,
-  Button,
-  Dropdown,
-  MenuProps,
-  Space,
-  Tabs,
-  theme,
-} from "antd";
-import {
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  UserOutlined,
-  LogoutOutlined,
-  SettingOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
-import { useUserStore } from "@/stores/user";
-import { useTabStore } from "@/stores/tab";
+	ArrowLeftToLine,
+	ArrowRightToLine,
+	Minus,
+	RefreshCw,
+	X,
+} from "lucide-react";
+import React, { MutableRefObject, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-interface NavBarProps {
-  collapsed: boolean;
-  onCollapse: (collapsed: boolean) => void;
+type NavBarContext = {
+	aliveRef: MutableRefObject<KeepAliveRef | undefined>;
+	defaultLink: MenuItem;
+	current: string;
+	menus: MenuItem[];
+	links: MenuItem[];
+	getLinkIcon: (link: MenuItem) => React.ReactNode;
+	navigate: (ket: string) => void;
+	refresh: (link: MenuItem) => void;
+	refreshCurrent: () => void;
+	close: (link: MenuItem) => void;
+	closeCurrent: () => void;
+	closeLeft: (link: MenuItem) => void;
+	closeRight: (link: MenuItem) => void;
+	closeOther: (link: MenuItem) => void;
+	closeAll: () => void;
+};
+
+const NavBarContext = React.createContext<NavBarContext | null>(null);
+
+function useNavBar() {
+	const context = React.useContext(NavBarContext);
+	if (!context) {
+		throw new Error("useNavBar must be used within a NavBarProvider.");
+	}
+
+	return context;
 }
 
-export interface TabItem {
-  key: string;
-  label: string;
-  closable?: boolean;
+const loadLinksFromLocalStorage = (defaultLink: MenuItem) => {
+	const storedLinks = localStorage.getItem(
+		`${constants.localStorageKeyPrefix}-navbar-links`,
+	);
+	let links = [];
+	if (storedLinks) {
+		try {
+			links = JSON.parse(storedLinks);
+		} catch (error) {
+			links = [defaultLink];
+		}
+	}
+	if (!links.length) {
+		links = [defaultLink];
+	}
+
+	return links;
+};
+
+const saveLinksToLocalStorage = (links: MenuItem[]) => {
+	localStorage.setItem(
+		`${constants.localStorageKeyPrefix}-navbar-links`,
+		JSON.stringify(links),
+	);
+};
+
+const NavBarProvider = ({
+	aliveRef,
+	current,
+	menus,
+	getLinkIcon,
+	children,
+}: React.ComponentProps<"div"> & {
+	aliveRef: MutableRefObject<KeepAliveRef | undefined>;
+	current: string;
+	menus: MenuItem[];
+	getLinkIcon: (link: MenuItem) => React.ReactNode;
+}) => {
+	const state = useReactive<{
+		links: MenuItem[];
+	}>({
+		links: [],
+	});
+	const nav = useNavigate();
+	const defaultLink = menus[0];
+	console.log(defaultLink);
+
+	// useEffect(() => {
+	// 	state.links = loadLinksFromLocalStorage(defaultLink);
+	// }, [defaultLink]);
+
+	useEffect(() => {
+		saveLinksToLocalStorage(state.links);
+	}, [state.links]);
+
+	const contextValue = React.useMemo<NavBarContext>(() => {
+		const navigate = (link: MenuItem) => {
+			nav(link.key);
+			if (!state.links.some((l) => l.key === link.key)) {
+				state.links = [...state.links, link];
+			}
+		};
+
+		const refresh = (link: MenuItem) => {
+			aliveRef.current?.refresh(link.key);
+		};
+
+		const refreshCurrent = () => {
+			aliveRef.current?.refresh();
+		};
+
+		const close = (link: MenuItem) => {
+			const index = state.links.findIndex((l) => l.key === link.key);
+			const newLinks = [...state.links];
+			newLinks.splice(index, 1);
+			const nextLink = newLinks[index] ?? newLinks[newLinks.length - 1];
+			state.links = newLinks;
+			navigate(nextLink);
+		};
+
+		const closeCurrent = () => {
+			if (current === defaultLink.key) return;
+			close({ key: current } as MenuItem);
+		};
+
+		const closeLeft = (link: MenuItem) => {
+			const currentIndex = state.links.findIndex((l) => l.key === current);
+			const index = state.links.findIndex((l) => l.key === link.key);
+			state.links = state.links.filter((_, i) => i >= index || i === 0);
+			if (currentIndex < index) {
+				navigate(link);
+			}
+		};
+
+		const closeRight = (link: MenuItem) => {
+			const currentIndex = state.links.findIndex((l) => l.key === current);
+			const index = state.links.findIndex((l) => l.key === link.key);
+			state.links = state.links.filter((_, i) => i <= index || i === 0);
+			if (currentIndex > index) {
+				navigate(link);
+			}
+		};
+
+		const closeOther = (link: MenuItem) => {
+			const newLinks = state.links.filter((l) => l.key === link.key);
+			state.links =
+				link.key === defaultLink.key
+					? [...newLinks]
+					: [defaultLink, ...newLinks];
+			navigate(link);
+		};
+
+		const closeAll = () => {
+			state.links = [defaultLink];
+			navigate(defaultLink);
+		};
+
+		return {
+			aliveRef,
+			defaultLink,
+			current,
+			links: state.links,
+			getLinkIcon,
+			navigate,
+			refresh,
+			refreshCurrent,
+			close,
+			closeCurrent,
+			closeLeft,
+			closeRight,
+			closeOther,
+			closeAll,
+		};
+	}, [aliveRef, nav, current, state.links, getLinkIcon]);
+
+	return (
+		<NavBarContext.Provider value={contextValue}>
+			{children}
+		</NavBarContext.Provider>
+	);
+};
+
+NavBarProvider.displayName = "NavBarProvider";
+
+function NavBar() {
+	const { menus, defaultLink, current, links, getLinkIcon, navigate, close } =
+		useNavBar();
+
+	console.log(links);
+
+	const onEdit = (key: string, action: "add" | "remove") => {
+		if ("remove" === action) {
+			close({ key } as MenuItem);
+		}
+		if ("add" === action) {
+			navigate(key);
+		}
+	};
+
+	return (
+		<nav className="flex flex-1 items-center space-x-2 h-12 overflow-auto">
+			{/* {links.map((link) => (
+				<NavBarItem
+					key={link.key}
+					icon={getLinkIcon(link)}
+					label={link.label}
+					isActive={current === link.key}
+					closeable={link.key !== defaultLink.key}
+					onClick={() => {
+						navigate(link);
+					}}
+					onClose={() => {
+						close(link);
+					}}
+				/>
+			))} */}
+			<Tabs
+				hideAdd
+				type="editable-card"
+				items={links.map((l) => ({ key: l.key, label: l.label }))}
+				onEdit={onEdit}
+			/>
+		</nav>
+	);
 }
 
-export default function NavBar({ collapsed, onCollapse }: NavBarProps) {
-  const { token } = theme.useToken();
-  const { user, logout } = useUserStore();
-  const { tabs, activeTab, addTab, removeTab, setActiveTab } = useTabStore();
-  const [loading, setLoading] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
+NavBar.diplayName = "NavBar";
 
-  // 监听路由变化，自动添加标签页
-  useEffect(() => {
-    const { pathname } = location;
-    // 这里可以根据路由配置获取标签页标题
-    const title = getRouteTitle(pathname);
-    if (title) {
-      addTab({
-        key: pathname,
-        label: title,
-        closable: pathname !== "/dashboard",
-      });
-      setActiveTab(pathname);
-    }
-  }, [location, addTab, setActiveTab]);
+function NavBarItem({
+	className,
+	isActive = false,
+	closeable = true,
+	onClick = () => {},
+	onClose = () => {},
+	...link
+}: React.HTMLAttributes<HTMLAnchorElement> &
+	MenuItem & {
+		isActive?: boolean;
+		closeable?: boolean;
+		onClose?: () => void;
+	}) {
+	const { defaultLink, refresh, close, closeLeft, closeRight, closeOther } =
+		useNavBar();
 
-  const userMenuItems: MenuProps["items"] = [
-    {
-      key: "profile",
-      icon: <UserOutlined />,
-      label: "个人信息",
-    },
-    {
-      key: "settings",
-      icon: <SettingOutlined />,
-      label: "设置",
-    },
-    {
-      type: "divider",
-    },
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: "退出登录",
-      danger: true,
-    },
-  ];
-
-  const handleMenuClick: MenuProps["onClick"] = async ({ key }) => {
-    if (key === "logout") {
-      setLoading(true);
-      try {
-        await logout();
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    navigate(key);
-  };
-
-  const handleTabEdit = (
-    targetKey: string,
-    action: "add" | "remove"
-  ) => {
-    if (action === "remove") {
-      removeTab(targetKey);
-      // 如果关闭的是当前标签页，则自动切换到最后一个标签页
-      if (targetKey === activeTab) {
-        const lastTab = tabs[tabs.length - 1];
-        if (lastTab) {
-          setActiveTab(lastTab.key);
-          navigate(lastTab.key);
-        }
-      }
-    }
-  };
-
-  // 获取路由标题的函数，你需要根据实际路由配置实现
-  const getRouteTitle = (pathname: string): string => {
-    const routeMap: Record<string, string> = {
-      "/dashboard": "仪表盘",
-      "/users": "用户管理",
-      "/settings": "系统设置",
-      // 添加更多路由映射
-    };
-    return routeMap[pathname] || "未知页面";
-  };
-
-  return (
-    <div className="flex flex-col">
-      <div
-        style={{
-          height: 48,
-          padding: "0 16px",
-          backgroundColor: token.colorBgContainer,
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div className="flex items-center">
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => onCollapse(!collapsed)}
-          />
-          <Link
-            to="/"
-            className="ml-4 text-lg font-semibold"
-            style={{ color: token.colorText }}
-          >
-            ELL Admin
-          </Link>
-        </div>
-
-        <div className="flex items-center">
-          <Dropdown
-            menu={{
-              items: userMenuItems,
-              onClick: handleMenuClick,
-            }}
-            placement="bottomRight"
-          >
-            <Space className="cursor-pointer">
-              <Avatar
-                size="small"
-                icon={<UserOutlined />}
-                src={user?.avatar}
-              />
-              <span>{user?.name || "用户"}</span>
-            </Space>
-          </Dropdown>
-        </div>
-      </div>
-
-      <Tabs
-        type="editable-card"
-        onChange={handleTabChange}
-        activeKey={activeTab}
-        onEdit={handleTabEdit}
-        items={tabs}
-        hideAdd
-        className="px-2 border-b border-gray-200"
-      />
-    </div>
-  );
+	return (
+		<div>{link.label}</div>
+		// <ContextMenu>
+		// 	<ContextMenuTrigger>
+		// 		<a
+		// 			className={cn(
+		// 				"flex items-center cursor-pointer space-x-2 px-2 py-1 rounded-md bg-background text-foreground hover:bg-accent hover:text-accent-foreground min-w-[60px]",
+		// 				isActive &&
+		// 					"bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+		// 				className,
+		// 			)}
+		// 			onClick={onClick}
+		// 		>
+		// 			{link.icon}
+		// 			<span className="text-sm">{link.name}</span>
+		// 			{closeable && (
+		// 				<Button
+		// 					className={cn(
+		// 						"size-4 hover:bg-primary hover:text-primary-foreground",
+		// 						isActive && "hover:bg-background hover:text-foreground",
+		// 					)}
+		// 					size="icon"
+		// 					variant="ghost"
+		// 					onClick={(e) => {
+		// 						e.stopPropagation();
+		// 						onClose();
+		// 					}}
+		// 				>
+		// 					<X />
+		// 				</Button>
+		// 			)}
+		// 		</a>
+		// 	</ContextMenuTrigger>
+		// 	<ContextMenuContent>
+		// 		<ContextMenuItem
+		// 			onClick={() => {
+		// 				refresh(link);
+		// 			}}
+		// 		>
+		// 			<RefreshCw className="size-4" />
+		// 			<span className="ml-1">刷新当前标签页</span>
+		// 		</ContextMenuItem>
+		// 		{link.key !== defaultLink.key && (
+		// 			<>
+		// 				<ContextMenuSeparator className="w-full h-[1px] bg-border" />
+		// 				<ContextMenuItem onClick={() => closeLeft(link)}>
+		// 					<ArrowLeftToLine className="size-4" />
+		// 					<span className="ml-1">关闭左侧标签页</span>
+		// 				</ContextMenuItem>
+		// 				<ContextMenuItem onClick={() => closeRight(link)}>
+		// 					<ArrowRightToLine className="size-4" />
+		// 					<span className="ml-1">关闭右侧标签页</span>
+		// 				</ContextMenuItem>
+		// 			</>
+		// 		)}
+		// 		<ContextMenuSeparator className="w-full h-[1px] bg-border" />
+		// 		<ContextMenuItem onClick={() => closeOther(link)}>
+		// 			<Minus className="size-4" />
+		// 			<span className="ml-1">关闭其他标签页</span>
+		// 		</ContextMenuItem>
+		// 		{link.key !== defaultLink.key && (
+		// 			<ContextMenuItem onClick={() => close(link)}>
+		// 				<X className="size-4" />
+		// 				<span className="ml-1">关闭当前标签页</span>
+		// 			</ContextMenuItem>
+		// 		)}
+		// 	</ContextMenuContent>
+		// </ContextMenu>
+	);
 }
+
+NavBarItem.displayName = "NavBarItem";
+
+export { NavBar, NavBarItem, NavBarProvider, useNavBar };
