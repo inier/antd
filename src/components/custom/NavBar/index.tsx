@@ -1,9 +1,9 @@
 import constants from "@/constants";
 import { cn } from "@/lib/utils";
-import { MenuItem } from "@/router";
+import { MenuItem, searchItemByKey } from "@/router";
 
 import { useReactive } from "ahooks";
-import { Tabs } from "antd";
+import { Button, Dropdown, MenuProps, Tabs } from "antd";
 import { KeepAliveRef } from "keepalive-for-react";
 import {
 	ArrowLeftToLine,
@@ -12,24 +12,23 @@ import {
 	RefreshCw,
 	X,
 } from "lucide-react";
-import React, { MutableRefObject, useEffect } from "react";
+import React, { MutableRefObject, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 type NavBarContext = {
 	aliveRef: MutableRefObject<KeepAliveRef | undefined>;
-	defaultLink: MenuItem;
 	current: string;
+	defaultItem: MenuItem;
 	menus: MenuItem[];
-	links: MenuItem[];
-	getLinkIcon: (link: MenuItem) => React.ReactNode;
-	navigate: (ket: string) => void;
-	refresh: (link: MenuItem) => void;
+	items: MenuItem[];
+	navigate: (key: string) => void;
+	refresh: (key: string) => void;
 	refreshCurrent: () => void;
-	close: (link: MenuItem) => void;
+	close: (key: string) => void;
 	closeCurrent: () => void;
-	closeLeft: (link: MenuItem) => void;
-	closeRight: (link: MenuItem) => void;
-	closeOther: (link: MenuItem) => void;
+	closeLeft: (key: string) => void;
+	closeRight: (key: string) => void;
+	closeOther: (key: string) => void;
 	closeAll: () => void;
 };
 
@@ -44,29 +43,29 @@ function useNavBar() {
 	return context;
 }
 
-const loadLinksFromLocalStorage = (defaultLink: MenuItem) => {
-	const storedLinks = localStorage.getItem(
-		`${constants.localStorageKeyPrefix}-navbar-links`,
+const loadItemsFromLocalStorage = (defaultItem: MenuItem) => {
+	const storedItems = localStorage.getItem(
+		`${constants.localStorageKeyPrefix}-navbar-items`,
 	);
-	let links = [];
-	if (storedLinks) {
+	let items = [];
+	if (storedItems) {
 		try {
-			links = JSON.parse(storedLinks);
+			items = JSON.parse(storedItems);
 		} catch (error) {
-			links = [defaultLink];
+			items = [defaultItem];
 		}
 	}
-	if (!links.length) {
-		links = [defaultLink];
+	if (!items.length) {
+		items = [defaultItem];
 	}
 
-	return links;
+	return items;
 };
 
-const saveLinksToLocalStorage = (links: MenuItem[]) => {
+const saveItemsToLocalStorage = (items: MenuItem[]) => {
 	localStorage.setItem(
-		`${constants.localStorageKeyPrefix}-navbar-links`,
-		JSON.stringify(links),
+		`${constants.localStorageKeyPrefix}-navbar-items`,
+		JSON.stringify(items),
 	);
 };
 
@@ -74,7 +73,6 @@ const NavBarProvider = ({
 	aliveRef,
 	current,
 	menus,
-	getLinkIcon,
 	children,
 }: React.ComponentProps<"div"> & {
 	aliveRef: MutableRefObject<KeepAliveRef | undefined>;
@@ -83,90 +81,94 @@ const NavBarProvider = ({
 	getLinkIcon: (link: MenuItem) => React.ReactNode;
 }) => {
 	const state = useReactive<{
-		links: MenuItem[];
+		items: MenuItem[];
 	}>({
-		links: [],
+		items: [],
 	});
 	const nav = useNavigate();
-	const defaultLink = menus[0];
-	console.log(defaultLink);
-
-	// useEffect(() => {
-	// 	state.links = loadLinksFromLocalStorage(defaultLink);
-	// }, [defaultLink]);
+	const defaultItem = menus[0];
 
 	useEffect(() => {
-		saveLinksToLocalStorage(state.links);
-	}, [state.links]);
+		state.items = loadItemsFromLocalStorage(defaultItem);
+	}, [defaultItem]);
+
+	useEffect(() => {
+		saveItemsToLocalStorage(state.items);
+	}, [state.items]);
 
 	const contextValue = React.useMemo<NavBarContext>(() => {
-		const navigate = (link: MenuItem) => {
-			nav(link.key);
-			if (!state.links.some((l) => l.key === link.key)) {
-				state.links = [...state.links, link];
+		const navigate = (key: string) => {
+			nav(key);
+			if (!state.items.some((l) => l.key === key)) {
+				const item = searchItemByKey(menus, key);
+				if (!item) return;
+				state.items = [...state.items, item];
 			}
 		};
 
-		const refresh = (link: MenuItem) => {
-			aliveRef.current?.refresh(link.key);
+		const refresh = (key: string) => {
+			aliveRef.current?.refresh(key);
 		};
 
 		const refreshCurrent = () => {
 			aliveRef.current?.refresh();
 		};
 
-		const close = (link: MenuItem) => {
-			const index = state.links.findIndex((l) => l.key === link.key);
-			const newLinks = [...state.links];
-			newLinks.splice(index, 1);
-			const nextLink = newLinks[index] ?? newLinks[newLinks.length - 1];
-			state.links = newLinks;
-			navigate(nextLink);
+		const close = (key: string) => {
+			const index = state.items.findIndex((l) => l.key === key);
+			const newItems = state.items.filter((l) => l.key !== key);
+			const nextItem = index > 0 ? newItems[index - 1] : newItems[index] ?? newItems[newItems.length - 1];
+			state.items = [...newItems];
+			if (current === key) {
+				navigate(nextItem?.key ?? defaultItem.key);
+			} else {
+				navigate(current);
+			}
 		};
 
 		const closeCurrent = () => {
-			if (current === defaultLink.key) return;
-			close({ key: current } as MenuItem);
+			if (current === defaultItem.key) return;
+			close(current);
 		};
 
-		const closeLeft = (link: MenuItem) => {
-			const currentIndex = state.links.findIndex((l) => l.key === current);
-			const index = state.links.findIndex((l) => l.key === link.key);
-			state.links = state.links.filter((_, i) => i >= index || i === 0);
+		const closeLeft = (key: string) => {
+			const currentIndex = state.items.findIndex((l) => l.key === current);
+			const index = state.items.findIndex((l) => l.key === key);
+			state.items = state.items.filter((_, i) => i >= index || i === 0);
 			if (currentIndex < index) {
-				navigate(link);
+				navigate(key);
 			}
 		};
 
-		const closeRight = (link: MenuItem) => {
-			const currentIndex = state.links.findIndex((l) => l.key === current);
-			const index = state.links.findIndex((l) => l.key === link.key);
-			state.links = state.links.filter((_, i) => i <= index || i === 0);
+		const closeRight = (key: string) => {
+			const currentIndex = state.items.findIndex((l) => l.key === current);
+			const index = state.items.findIndex((l) => l.key === key);
+			state.items = state.items.filter((_, i) => i <= index || i === 0);
 			if (currentIndex > index) {
-				navigate(link);
+				navigate(key);
 			}
 		};
 
-		const closeOther = (link: MenuItem) => {
-			const newLinks = state.links.filter((l) => l.key === link.key);
-			state.links =
-				link.key === defaultLink.key
-					? [...newLinks]
-					: [defaultLink, ...newLinks];
-			navigate(link);
+		const closeOther = (key: string) => {
+			const newItems = state.items.filter((l) => l.key === key);
+			state.items =
+				key === defaultItem.key
+					? [...newItems]
+					: [defaultItem, ...newItems];
+			navigate(key);
 		};
 
 		const closeAll = () => {
-			state.links = [defaultLink];
-			navigate(defaultLink);
+			state.items = [defaultItem];
+			navigate(defaultItem.key);
 		};
 
 		return {
 			aliveRef,
-			defaultLink,
+			defaultItem,
 			current,
-			links: state.links,
-			getLinkIcon,
+			menus,
+			items: state.items,
 			navigate,
 			refresh,
 			refreshCurrent,
@@ -177,7 +179,7 @@ const NavBarProvider = ({
 			closeOther,
 			closeAll,
 		};
-	}, [aliveRef, nav, current, state.links, getLinkIcon]);
+	}, [aliveRef, nav, current, state.items]);
 
 	return (
 		<NavBarContext.Provider value={contextValue}>
@@ -189,42 +191,22 @@ const NavBarProvider = ({
 NavBarProvider.displayName = "NavBarProvider";
 
 function NavBar() {
-	const { menus, defaultLink, current, links, getLinkIcon, navigate, close } =
-		useNavBar();
-
-	console.log(links);
-
-	const onEdit = (key: string, action: "add" | "remove") => {
-		if ("remove" === action) {
-			close({ key } as MenuItem);
-		}
-		if ("add" === action) {
-			navigate(key);
-		}
-	};
-
+	const { current, items, navigate } = useNavBar();
+	console.log('-->', items);
 	return (
-		<nav className="flex flex-1 items-center space-x-2 h-12 overflow-auto">
-			{/* {links.map((link) => (
-				<NavBarItem
-					key={link.key}
-					icon={getLinkIcon(link)}
-					label={link.label}
-					isActive={current === link.key}
-					closeable={link.key !== defaultLink.key}
-					onClick={() => {
-						navigate(link);
-					}}
-					onClose={() => {
-						close(link);
-					}}
-				/>
-			))} */}
+		<nav className="flex flex-1 items-end space-x-2 h-12 overflow-x-auto overflow-y-hidden [&_.ant-tabs-nav]:mb-0">
 			<Tabs
 				hideAdd
 				type="editable-card"
-				items={links.map((l) => ({ key: l.key, label: l.label }))}
-				onEdit={onEdit}
+				activeKey={current}
+				items={items.map(({ key, ...o }) => ({
+					key,
+					label: <NavBarItem id={key} {...o} />,
+					closable: false,
+				}))}
+				onTabClick={(key) => {
+					navigate(key);
+				}}
 			/>
 		</nav>
 	);
@@ -232,93 +214,128 @@ function NavBar() {
 
 NavBar.diplayName = "NavBar";
 
-function NavBarItem({
-	className,
-	isActive = false,
-	closeable = true,
-	onClick = () => {},
-	onClose = () => {},
-	...link
-}: React.HTMLAttributes<HTMLAnchorElement> &
-	MenuItem & {
-		isActive?: boolean;
-		closeable?: boolean;
-		onClose?: () => void;
-	}) {
-	const { defaultLink, refresh, close, closeLeft, closeRight, closeOther } =
-		useNavBar();
+function NavBarItem({ id }: { id: string } & MenuItem) {
+	const { menus, defaultItem, refresh, close, closeOther, closeLeft, closeRight } = useNavBar();
+
+	const items: MenuProps['items'] = useMemo(() => {
+		return [
+			{
+				key: 'refresh-current',
+				label: (
+					<div className="flex items-center space-x-2">
+						<RefreshCw className="size-3" />
+						<span>
+							刷新当前标签页
+						</span>
+					</div>
+				),
+			},
+			{
+				type: 'divider',
+			},
+			...(id !== defaultItem.key ? [{
+				key: 'close-left',
+				label: (
+					<div className="flex items-center space-x-2">
+						<ArrowLeftToLine className="size-3" />
+						<span>
+							关闭左侧标签页
+						</span>
+					</div>
+				),
+			}] : []),
+			{
+				key: 'close-right',
+				label: (
+					<div className="flex items-center space-x-2">
+						<ArrowRightToLine className="size-3" />
+						<span>
+							关闭右侧标签页
+						</span>
+					</div>
+				),
+			},
+			{
+				type: 'divider',
+			},
+			{
+				key: 'close-other',
+				label: (
+					<div className="flex items-center space-x-2">
+						<Minus className="size-3" />
+						<span>
+							关闭其他标签页
+						</span>
+					</div>
+				),
+			},
+			...(id !== defaultItem.key ? [{
+				key: 'close-current',
+				label: (
+					<div className="flex items-center space-x-2">
+						<X className="size-3" />
+						<span>
+							关闭当前标签页
+						</span>
+					</div>
+				),
+			}] : []),
+		]
+	}, [id, defaultItem]);
+
+	const menu = useMemo(() => {
+		return searchItemByKey(menus, id!);
+	}, [id]);
 
 	return (
-		<div>{link.label}</div>
-		// <ContextMenu>
-		// 	<ContextMenuTrigger>
-		// 		<a
-		// 			className={cn(
-		// 				"flex items-center cursor-pointer space-x-2 px-2 py-1 rounded-md bg-background text-foreground hover:bg-accent hover:text-accent-foreground min-w-[60px]",
-		// 				isActive &&
-		// 					"bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-		// 				className,
-		// 			)}
-		// 			onClick={onClick}
-		// 		>
-		// 			{link.icon}
-		// 			<span className="text-sm">{link.name}</span>
-		// 			{closeable && (
-		// 				<Button
-		// 					className={cn(
-		// 						"size-4 hover:bg-primary hover:text-primary-foreground",
-		// 						isActive && "hover:bg-background hover:text-foreground",
-		// 					)}
-		// 					size="icon"
-		// 					variant="ghost"
-		// 					onClick={(e) => {
-		// 						e.stopPropagation();
-		// 						onClose();
-		// 					}}
-		// 				>
-		// 					<X />
-		// 				</Button>
-		// 			)}
-		// 		</a>
-		// 	</ContextMenuTrigger>
-		// 	<ContextMenuContent>
-		// 		<ContextMenuItem
-		// 			onClick={() => {
-		// 				refresh(link);
-		// 			}}
-		// 		>
-		// 			<RefreshCw className="size-4" />
-		// 			<span className="ml-1">刷新当前标签页</span>
-		// 		</ContextMenuItem>
-		// 		{link.key !== defaultLink.key && (
-		// 			<>
-		// 				<ContextMenuSeparator className="w-full h-[1px] bg-border" />
-		// 				<ContextMenuItem onClick={() => closeLeft(link)}>
-		// 					<ArrowLeftToLine className="size-4" />
-		// 					<span className="ml-1">关闭左侧标签页</span>
-		// 				</ContextMenuItem>
-		// 				<ContextMenuItem onClick={() => closeRight(link)}>
-		// 					<ArrowRightToLine className="size-4" />
-		// 					<span className="ml-1">关闭右侧标签页</span>
-		// 				</ContextMenuItem>
-		// 			</>
-		// 		)}
-		// 		<ContextMenuSeparator className="w-full h-[1px] bg-border" />
-		// 		<ContextMenuItem onClick={() => closeOther(link)}>
-		// 			<Minus className="size-4" />
-		// 			<span className="ml-1">关闭其他标签页</span>
-		// 		</ContextMenuItem>
-		// 		{link.key !== defaultLink.key && (
-		// 			<ContextMenuItem onClick={() => close(link)}>
-		// 				<X className="size-4" />
-		// 				<span className="ml-1">关闭当前标签页</span>
-		// 			</ContextMenuItem>
-		// 		)}
-		// 	</ContextMenuContent>
-		// </ContextMenu>
+		<Dropdown
+			menu={{
+				items, onClick: ({ domEvent, key }) => {
+					domEvent.stopPropagation();
+					if ('refresh-current' === key) {
+						refresh(id);
+					}
+					if ('close-left' === key) {
+						closeLeft(id);
+					}
+					if ('close-right' === key) {
+						closeRight(id);
+					}
+					if ('close-other' === key) {
+						closeOther(id);
+					}
+					if ('close-current' === key) {
+						close(id);
+					}
+				}
+			}}
+			placement="bottom"
+			trigger={['contextMenu']}
+		>
+			<div
+				className={cn(
+					"flex justify-center items-center py-1 h-6",
+					defaultItem.key === menu?.key && "mr-1"
+				)}
+			>
+				<div className="flex justify-center items-center size-6 p-0">
+					{menu?.icon}
+				</div>
+				<div className="mr-1">{menu?.label}</div>
+				{defaultItem.key !== menu?.key && (
+					<div
+						className="flex justify-center items-center size-5 p-0 rounded hover:bg-primary hover:text-primary-foreground"
+						onClick={(e) => {
+							e.stopPropagation();
+							close(menu?.key);
+						}}
+					>
+						<X className="size-4" />
+					</div>
+				)}
+			</div>
+		</Dropdown>
 	);
 }
 
-NavBarItem.displayName = "NavBarItem";
-
-export { NavBar, NavBarItem, NavBarProvider, useNavBar };
+export { NavBar, NavBarProvider, useNavBar };

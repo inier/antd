@@ -1,4 +1,5 @@
 import { Spin } from "antd";
+import { Fragment } from "react/jsx-runtime";
 
 interface LoadingProps {
     tip?: string;
@@ -9,7 +10,7 @@ export default function Loading({ tip = '加载中...', childeren }: LoadingProp
     return (
         <div className="flex justify-center items-center">
             <Spin tip={tip} size="large">
-                {childeren}
+                {childeren ?? <Fragment />}
             </Spin>
         </div>
     );

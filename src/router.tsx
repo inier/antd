@@ -10,6 +10,22 @@ import { RouteObject, createBrowserRouter } from "react-router-dom";
 export type MenuItem = { key: string } & Required<MenuProps>["items"][number] &
 	RouteObject;
 
+export const searchItemByKey = (items: MenuItem[], key: string): MenuItem | null => {
+	let target = null;
+	for (const item of items) {
+		if (item.key === key) {
+			target = item;
+		}
+		if (!target) {
+			const children = item?.children ?? [];
+			if (children?.length > 0) {
+				target = searchItemByKey(children as MenuItem[], key);
+			}
+		}
+	}
+	return target;
+};
+
 export const menus: MenuItem[] = [
 	{
 		index: true,

@@ -7,7 +7,7 @@ import {
 	LogoutOutlined,
 } from "@ant-design/icons";
 import { useReactive } from "ahooks";
-import { Avatar, Button, Image, Layout, Menu, Popconfirm, Tooltip } from "antd";
+import { Avatar, Button, Layout, Menu, Popconfirm, Tooltip } from "antd";
 import { useSnapshot } from "valtio";
 import { useNavBar } from "../NavBar";
 
@@ -39,7 +39,7 @@ export default function SideBar({ active }: SideBarProps) {
 						state.collapsed && "flex-col",
 					)}
 				>
-					<Image src={setting?.logo} />
+					<img alt="logo" src={setting?.logo} />
 					{!state.collapsed && (
 						<span className="ml-2 text-sm font-medium">{setting?.name}</span>
 					)}
