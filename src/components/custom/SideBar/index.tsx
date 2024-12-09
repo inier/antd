@@ -24,7 +24,7 @@ export default function SideBar({ active }: SideBarProps) {
 
 	return (
 		<Sider width="220" trigger={null} collapsible collapsed={state.collapsed}>
-			<div className="relative flex flex-col h-full w-full bg-background">
+			<div className="relative flex flex-col h-full w-full px-1 bg-background">
 				<Button
 					className="absolute top-[50%] -right-4 w-8 h-8 rounded-full text-foreground bg-background hover:bg-primary hover:text-primary-foreground"
 					type="text"
@@ -46,7 +46,7 @@ export default function SideBar({ active }: SideBarProps) {
 				</div>
 				<Menu
 					className={cn(
-						"flex-1 overflow-y-auto no-scrollbar border-none",
+						"flex-1 mt-2 overflow-y-auto no-scrollbar border-none",
 						!state.collapsed
 							? "[&_.ant-menu-item-group-title]:text-left"
 							: "[&_.ant-menu-item-group-title]:text-center",

@@ -1,10 +1,10 @@
 import constants from "@/constants";
 import { cn } from "@/lib/utils";
-import { MenuItem, searchItemByKey } from "@/router";
+import { type MenuItem, searchItemByKey } from "@/router";
 
 import { useReactive } from "ahooks";
-import { Button, Dropdown, MenuProps, Tabs } from "antd";
-import { KeepAliveRef } from "keepalive-for-react";
+import { Button, Dropdown, type MenuProps, Tabs } from "antd";
+import type { KeepAliveRef } from "keepalive-for-react";
 import {
 	ArrowLeftToLine,
 	ArrowRightToLine,
@@ -12,7 +12,7 @@ import {
 	RefreshCw,
 	X,
 } from "lucide-react";
-import React, { MutableRefObject, useEffect, useMemo } from "react";
+import React, { type MutableRefObject, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 type NavBarContext = {
@@ -96,7 +96,7 @@ const NavBarProvider = ({
 		saveItemsToLocalStorage(state.items);
 	}, [state.items]);
 
-	const contextValue = React.useMemo<NavBarContext>(() => {
+	const contextValue = useMemo<NavBarContext>(() => {
 		const navigate = (key: string) => {
 			nav(key);
 			if (!state.items.some((l) => l.key === key)) {
@@ -192,7 +192,6 @@ NavBarProvider.displayName = "NavBarProvider";
 
 function NavBar() {
 	const { current, items, navigate } = useNavBar();
-	console.log('-->', items);
 	return (
 		<nav className="flex flex-1 items-end space-x-2 h-12 overflow-x-auto overflow-y-hidden [&_.ant-tabs-nav]:mb-0">
 			<Tabs
